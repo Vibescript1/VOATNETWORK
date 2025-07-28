@@ -75,8 +75,8 @@ class SignupPage extends Component {
     name: "",
     email: "",
     role: "",
-    phone: "",
-    profession: "",
+    // phone: "",
+    // profession: "",
     location: "",
     password: "",
     confirmPassword: "",
@@ -285,7 +285,7 @@ class SignupPage extends Component {
   };
 
   validateForm = () => {
-    const { name, email, role, profession, location, phone, password, confirmPassword } =
+    const { name, email, role,  location,  password, confirmPassword } =
       this.state;
     const errors = {};
 
@@ -301,9 +301,9 @@ class SignupPage extends Component {
       errors.role = "Please select a role";
     }
 
-    if (!profession) {
-      errors.profession = "Please enter your profession";
-    }
+    // if (!profession) {
+    //   errors.profession = "Please enter your profession";
+    // }
 
     if (!location) {
       errors.location = "Please enter your location";
@@ -372,9 +372,9 @@ class SignupPage extends Component {
             email: this.state.email,
             password: this.state.password,
             role: this.state.role,
-            profession: this.state.profession,
+            // profession: this.state.profession,
             location: this.state.location,
-            phone: this.state.phone, // Add this line
+            // phone: this.state.phone, // Add this line
           },
           {
             withCredentials: true,
