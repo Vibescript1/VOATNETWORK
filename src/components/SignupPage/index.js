@@ -1,7 +1,7 @@
 import { Component } from "react";
 import { Link } from "react-router-dom";
 import { Navigate } from "react-router-dom";
-import { Eye, EyeOff, ChevronDown, Home } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, Home, MapPin } from "lucide-react";
 import axios from "axios";
 import "./index.css";
 
@@ -77,6 +77,7 @@ class SignupPage extends Component {
     role: "",
     phone: "",
     profession: "",
+    location: "",
     password: "",
     confirmPassword: "",
     showPassword: false,
@@ -86,6 +87,7 @@ class SignupPage extends Component {
     redirectToLogin: false,
     showWelcomeCard: false,
     agreeToTerms: false,
+    isGettingLocation: false,
   };
 
   // Backend URLs
@@ -162,8 +164,128 @@ class SignupPage extends Component {
     }));
   };
 
+  getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      this.setState({
+        errors: {
+          ...this.state.errors,
+          location: "Geolocation is not supported by this browser.",
+        },
+      });
+      return;
+    }
+
+    this.setState({ isGettingLocation: true });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        // Use reverse geocoding to get address from coordinates
+        this.reverseGeocode(latitude, longitude);
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        let errorMessage = "Unable to get your current location.";
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location access was denied. Please enable location services.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information is unavailable.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out.";
+            break;
+          default:
+            errorMessage = "An unknown error occurred while getting location.";
+            break;
+        }
+
+        this.setState({
+          isGettingLocation: false,
+          errors: {
+            ...this.state.errors,
+            location: errorMessage,
+          },
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  };
+
+  reverseGeocode = async (latitude, longitude) => {
+    try {
+      // Using OpenStreetMap Nominatim API for reverse geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to get address');
+      }
+
+      const data = await response.json();
+      
+      if (data.display_name) {
+        // Extract city, state, and country from the display name
+        const addressParts = data.display_name.split(', ');
+        let location = '';
+        
+        // Try to get city, state, and country
+        if (addressParts.length >= 3) {
+          // Get the city (usually the first part after street)
+          const cityIndex = Math.min(2, addressParts.length - 3);
+          const city = addressParts[cityIndex];
+          
+          // Get the state/province (usually the second to last part)
+          const stateIndex = addressParts.length - 2;
+          const state = addressParts[stateIndex];
+          
+          // Get the country (last part)
+          const country = addressParts[addressParts.length - 1];
+          
+          location = `${city}, ${state}, ${country}`;
+        } else if (addressParts.length >= 2) {
+          // Fallback if we only have city and country
+          const cityIndex = Math.min(2, addressParts.length - 2);
+          const city = addressParts[cityIndex];
+          const country = addressParts[addressParts.length - 1];
+          location = `${city}, ${country}`;
+        } else {
+          location = data.display_name;
+        }
+
+        this.setState({
+          location,
+          isGettingLocation: false,
+          errors: {
+            ...this.state.errors,
+            location: null,
+          },
+        });
+      } else {
+        throw new Error('No address found');
+      }
+    } catch (error) {
+      console.error("Error in reverse geocoding:", error);
+      this.setState({
+        isGettingLocation: false,
+        errors: {
+          ...this.state.errors,
+          location: "Unable to get address from coordinates. Please enter location manually.",
+        },
+      });
+    }
+  };
+
   validateForm = () => {
-    const { name, email, role, profession, phone, password, confirmPassword } =
+    const { name, email, role, profession, location, phone, password, confirmPassword } =
       this.state;
     const errors = {};
 
@@ -183,12 +305,16 @@ class SignupPage extends Component {
       errors.profession = "Please enter your profession";
     }
 
-    // Updated phone validation - more flexible
-    if (!phone) {
-      errors.phone = "Phone number is required";
-    } else if (phone.length < 10) {
-      errors.phone = "Phone number must be at least 10 digits";
+    if (!location) {
+      errors.location = "Please enter your location";
     }
+
+    // Updated phone validation - more flexible
+    // if (!phone) {
+    //   errors.phone = "Phone number is required";
+    // } else if (phone.length < 10) {
+    //   errors.phone = "Phone number must be at least 10 digits";
+    // }
 
     if (password.length < 6) {
       errors.password = "Password must be at least 6 characters";
@@ -247,6 +373,7 @@ class SignupPage extends Component {
             password: this.state.password,
             role: this.state.role,
             profession: this.state.profession,
+            location: this.state.location,
             phone: this.state.phone, // Add this line
           },
           {
@@ -339,6 +466,7 @@ class SignupPage extends Component {
       redirectToLogin,
       showWelcomeCard,
       name,
+      isGettingLocation,
     } = this.state;
 
     // Redirect to login page if registration was successful
@@ -397,7 +525,7 @@ class SignupPage extends Component {
                 </div>
               </div>
 
-              {/* Two column layout for Role and Profession */}
+              {/* Two column layout for Role and Location */}
               <div className="register-row">
                 {/* Role Input */}
                 <div className="register-input-group">
@@ -428,8 +556,45 @@ class SignupPage extends Component {
                   )}
                 </div>
 
-                {/* Profession Input */}
+                {/* Location Input */}
                 <div className="register-input-group">
+                  <label htmlFor="location" className="register-label">
+                    Location
+                  </label>
+                  <div className="register-location-container">
+                    <input
+                      name="location"
+                      type="text"
+                      value={this.state.location}
+                      onChange={this.handleInputChange}
+                      className="register-input"
+                      placeholder="Enter your location"
+                    />
+                    <button
+                      type="button"
+                      onClick={this.getCurrentLocation}
+                      disabled={isGettingLocation}
+                      className="register-location-button"
+                      title=""
+                    >
+                      {isGettingLocation ? (
+                        <div className="register-location-spinner"></div>
+                      ) : (
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                      )}
+                      <span className="register-location-tooltip">Get current location</span>
+                    </button>
+                  </div>
+                  {errors.location && (
+                    <p className="register-input-error">{errors.location}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Two column layout for Profession and Phone Number */}
+              <div className="register-row">
+                {/* Profession Input */}
+                {/* <div className="register-input-group">
                   <label htmlFor="profession" className="register-label">
                     Profession
                   </label>
@@ -444,24 +609,25 @@ class SignupPage extends Component {
                   {errors.profession && (
                     <p className="register-input-error">{errors.profession}</p>
                   )}
-                </div>
-              </div>
+                </div> */}
 
-              <div className="register-input-group">
-                <label htmlFor="phone" className="register-label">
-                  Phone Number
-                </label>
-                <input
-                  name="phone"
-                  type="tel"
-                  value={this.state.phone}
-                  onChange={this.handleInputChange}
-                  className="register-input"
-                  placeholder="Enter your phone number"
-                />
-                {errors.phone && (
-                  <p className="register-input-error">{errors.phone}</p>
-                )}
+                {/* Phone Number Input */}
+                {/* <div className="register-input-group">
+                  <label htmlFor="phone" className="register-label">
+                    Phone Number
+                  </label>
+                  <input
+                    name="phone"
+                    type="tel"
+                    value={this.state.phone}
+                    onChange={this.handleInputChange}
+                    className="register-input"
+                    placeholder="Enter your phone number"
+                  />
+                  {errors.phone && (
+                    <p className="register-input-error">{errors.phone}</p>
+                  )}
+                </div> */}
               </div>
 
               {/* Two column layout for Password fields */}

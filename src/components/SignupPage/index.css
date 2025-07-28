@@ -157,6 +157,93 @@
   color: #4b5563;
 }
 
+.register-location-container {
+  position: relative;
+}
+
+.register-location-container .register-input {
+  padding-right: 3rem;
+}
+
+.register-location-button {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background-color: transparent;
+  color: #6b7280;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.register-location-button:hover {
+  color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+.register-location-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.register-location-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1f2937;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 1000;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+.register-location-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 0.25rem solid transparent;
+  border-top-color: #1f2937;
+}
+
+.register-location-button:hover .register-location-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-0.25rem);
+}
+
+.register-location-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .register-submit-button {
   width: 100%;
   padding: 1rem 1.5rem;
@@ -293,4 +380,10 @@
   .register-divider-content {
     font-size: 13px;
   }
+}
+.register-form {
+  display: flex
+;
+  flex-direction: column;
+  gap: 1rem;
 }

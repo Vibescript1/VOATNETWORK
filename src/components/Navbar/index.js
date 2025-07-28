@@ -10,7 +10,8 @@ import {
   Check,
   Search,
   ShoppingCart,
-  // ChevronDown,
+  ChevronDown,
+  LogInIcon,
 } from "lucide-react";
 import "./index.css";
 
@@ -30,7 +31,6 @@ class NavBar extends Component {
     searchQuery: "",
     activeMenu: "",
     cartSidebarOpen: false,
-    currentMessageIndex: 0,
   };
 
   // Backend URLs - will try both environments
@@ -67,11 +67,8 @@ class NavBar extends Component {
     // Check which backend is available
     this.checkBackendAvailability();
 
-    // Check initial login stat
-    // us without showing notifications
+    // Check initial login status without showing notifications
     this.loadUserData();
-
-    this.startCarousel();
 
     // Set up interval to check for login status changes
     this.loginCheckInterval = setInterval(
@@ -99,46 +96,24 @@ class NavBar extends Component {
     } else if (pathname.includes("/portfolio-list")) {
       this.setState({ activeMenu: "portfolio" });
     } else if (pathname.includes("/#contact")) {
+      {/* Contact Section Active Menu Detection */}
       this.setState({ activeMenu: "contact" });
     } else {
       this.setState({ activeMenu: "" });
     }
   };
 
-  startCarousel = () => {
-    this.carouselInterval = setInterval(() => {
-      const messages = this.getSpecialOfferText();
-      this.setState((prevState) => ({
-        currentMessageIndex:
-          (prevState.currentMessageIndex + 1) % messages.length,
-      }));
-    }, 4000); // Change message every 4 seconds (increased from 3)
-  };
-
   // Get initials from user name
   getUserInitials = (name) => {
-    if (!name || typeof name !== "string") return "U";
+    if (!name) return "U";
 
-    // Clean the name and split by spaces
-    const cleanName = name.trim();
-    const words = cleanName.split(/\s+/).filter((word) => word.length > 0);
-
-    if (words.length === 0) return "U";
-
-    if (words.length === 1) {
-      // Single word - take first two characters if available
-      const word = words[0];
-      if (word.length >= 2) {
-        return word.substring(0, 2).toUpperCase();
-      } else {
-        return word.charAt(0).toUpperCase();
-      }
+    const names = name.split(" ");
+    if (names.length === 1) {
+      return names[0].charAt(0).toUpperCase();
     } else {
-      // Multiple words - take first letter of first two words
-      return words
-        .slice(0, 2)
-        .map((word) => word.charAt(0).toUpperCase())
-        .join("");
+      return (
+        names[0].charAt(0) + names[names.length - 1].charAt(0)
+      ).toUpperCase();
     }
   };
 
@@ -185,88 +160,53 @@ class NavBar extends Component {
     return window.backendUrl || this.backendUrls[0];
   };
 
-  fetchUserFromDatabase = async (userId) => {
-    try {
-      const backendUrl = this.getBackendUrl();
-      console.log("Fetching user data from database for userId:", userId);
-
-      const response = await fetch(`${backendUrl}/api/user/${userId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log("Fresh user data from database:", result);
-
-        if (result.success && result.user) {
-          // Update localStorage with fresh data
-          localStorage.setItem("user", JSON.stringify(result.user));
-
-          console.log("User data updated in localStorage from database");
-          return result.user;
-        } else {
-          console.error("Invalid response structure from database");
-          return null;
-        }
-      } else {
-        console.error(
-          "Failed to fetch user data from database:",
-          response.status
-        );
-        return null;
-      }
-    } catch (error) {
-      console.error("Error fetching user data from database:", error);
-      return null;
-    }
-  };
-
   // Load user data directly from localStorage only
-  loadUserData = async () => {
+  loadUserData = () => {
     try {
       const userDataString = localStorage.getItem("user");
       if (userDataString) {
         try {
-          const localUserData = JSON.parse(userDataString);
-          console.log("Local user data loaded:", localUserData);
+          const userData = JSON.parse(userDataString);
+          console.log("User data loaded from localStorage:", userData);
 
-          // First set state with local data (without profile image)
-          this.setState({
-            user: {
-              ...localUserData,
-              profileImage: null, // Don't use localStorage profile image
-            },
-            isLoggedIn: true,
-          });
-
-          // If we have a user ID, fetch fresh data from database
-          if (localUserData.id) {
-            const freshUserData = await this.fetchUserFromDatabase(
-              localUserData.id
-            );
-
-            if (freshUserData) {
-              // Update state with fresh data from database
-              this.setState({
-                user: freshUserData,
-                isLoggedIn: true,
-              });
-
-              console.log(
-                "User data updated from database, profile image:",
-                freshUserData.profileImage
-              );
-            } else {
-              // Keep local data but without profile image if database fetch fails
-              console.log(
-                "Database fetch failed, keeping local data without profile image"
-              );
+          // Ensure profile image path is properly formatted with full URL if needed
+          if (userData && userData.profileImage) {
+            // Check if it's a relative path or already has a domain
+            if (
+              !userData.profileImage.startsWith("http") &&
+              !userData.profileImage.startsWith("/")
+            ) {
+              userData.profileImage = "/" + userData.profileImage;
             }
+
+            // If it's a relative path, ensure it's properly formatted
+            if (userData.profileImage.startsWith("/uploads/")) {
+              // Check if we need to prepend the backend URL
+              const backendUrl = this.getBackendUrl();
+              if (!userData.profileImage.includes(backendUrl)) {
+                // Remove any duplicate slashes
+                const cleanPath = userData.profileImage.replace(/^\/+/, "");
+                userData.profileImage = `${backendUrl}/${cleanPath}`;
+              }
+            }
+
+            console.log("Formatted profile image path:", userData.profileImage);
+          }
+
+          // Make sure we have a name and it's not generated
+          if (userData && userData.name) {
+            // Update state with localStorage data
+            this.setState({
+              user: userData,
+              isLoggedIn: true,
+            });
           } else {
-            console.error("No user ID found in localStorage data");
+            // Handle missing name
+            console.error("User data missing name property");
+            this.setState({
+              isLoggedIn: false,
+              user: null,
+            });
           }
         } catch (error) {
           console.error("Error parsing user data:", error);
@@ -356,16 +296,26 @@ class NavBar extends Component {
     clearTimeout(this.redirectTimer);
     clearTimeout(this.welcomeMessageTimer);
     clearInterval(this.loginCheckInterval);
-    clearInterval(this.carouselInterval);
   }
 
   // Method to check login status periodically
-  checkLoginStatusPeriodically = async () => {
+  checkLoginStatusPeriodically = () => {
     try {
       let userData = null;
       try {
         const userDataStr = localStorage.getItem("user");
         userData = userDataStr ? JSON.parse(userDataStr) : null;
+
+        // Format profile image path if exists
+        if (userData && userData.profileImage) {
+          // If profile image doesn't start with http or /, add /
+          if (
+            !userData.profileImage.startsWith("http") &&
+            !userData.profileImage.startsWith("/")
+          ) {
+            userData.profileImage = "/" + userData.profileImage;
+          }
+        }
       } catch (e) {
         console.error("Error parsing user data:", e);
         userData = null;
@@ -377,8 +327,8 @@ class NavBar extends Component {
       // If login state changed to logged in
       if (!wasLoggedIn && isLoggedIn) {
         console.log("Detected login via interval check");
-        // Load latest user data from database
-        await this.loadUserData();
+        // Load latest user data from localStorage
+        this.loadUserData();
         this.setState({ expectingLogin: false });
       }
       // If logout happened
@@ -386,37 +336,20 @@ class NavBar extends Component {
         console.log("Detected logout via interval check");
         this.handleExternalLogout();
       }
-      // Update user data if it changed in localStorage, but prioritize database for profile image
+      // Update user data from localStorage if it changed
       else if (isLoggedIn && userData && this.state.user) {
+        // Compare current state with localStorage data
         const currentUser = this.state.user;
-
-        // Check if important fields changed
         if (
           userData.name !== currentUser.name ||
           userData.email !== currentUser.email ||
           userData.id !== currentUser.id ||
           userData.role !== currentUser.role ||
+          userData.profileImage !== currentUser.profileImage ||
           userData.voatId !== currentUser.voatId
         ) {
-          console.log(
-            "User data changed in localStorage, fetching fresh data from database"
-          );
-
-          // Fetch fresh data from database
-          if (userData.id) {
-            const freshUserData = await this.fetchUserFromDatabase(userData.id);
-            if (freshUserData) {
-              this.setState({ user: freshUserData });
-            } else {
-              // Fallback to localStorage data but without profile image
-              this.setState({
-                user: {
-                  ...userData,
-                  profileImage: null,
-                },
-              });
-            }
-          }
+          console.log("User data changed in localStorage, updating state");
+          this.setState({ user: userData });
         }
       }
     } catch (error) {
@@ -444,7 +377,8 @@ class NavBar extends Component {
     });
   };
 
-  handleStorageEvent = async (event) => {
+  // Handle storage events (login/logout from other tabs or components)
+  handleStorageEvent = (event) => {
     if (event.key === "user") {
       console.log(
         "Storage event detected:",
@@ -457,38 +391,24 @@ class NavBar extends Component {
         try {
           const userData = JSON.parse(event.newValue);
 
+          // Format profile image path if exists
+          if (userData && userData.profileImage) {
+            // If profile image doesn't start with http or /, add /
+            if (
+              !userData.profileImage.startsWith("http") &&
+              !userData.profileImage.startsWith("/")
+            ) {
+              userData.profileImage = "/" + userData.profileImage;
+            }
+          }
+
           if (!this.state.isLoggedIn) {
             console.log("Handling login from storage event");
-            // Fetch fresh data from database instead of using localStorage
-            if (userData.id) {
-              const freshUserData = await this.fetchUserFromDatabase(
-                userData.id
-              );
-              if (freshUserData) {
-                this.handleLogin(freshUserData);
-              } else {
-                // Fallback to storage data without profile image
-                this.handleLogin({
-                  ...userData,
-                  profileImage: null,
-                });
-              }
-            } else {
-              this.handleLogin({
-                ...userData,
-                profileImage: null,
-              });
-            }
+            this.handleLogin(userData);
           } else {
-            // Just update user data from database
-            if (userData.id) {
-              const freshUserData = await this.fetchUserFromDatabase(
-                userData.id
-              );
-              if (freshUserData) {
-                this.setState({ user: freshUserData });
-              }
-            }
+            console.log(userData, "userData--userData");
+            // Just update user data without notification
+            this.setState({ user: userData });
           }
         } catch (e) {
           console.error("Error parsing user data from storage event:", e);
@@ -513,9 +433,20 @@ class NavBar extends Component {
       }
 
       console.log("Handling login for user:", user.name);
-      console.log("Profile image from database:", user.profileImage);
 
-      // Don't modify profile image path - use exactly what database returns
+      // Format profile image path if exists
+      if (user && user.profileImage) {
+        // If profile image doesn't start with http or /, add /
+        if (
+          !user.profileImage.startsWith("http") &&
+          !user.profileImage.startsWith("/")
+        ) {
+          user.profileImage = "/" + user.profileImage;
+        }
+        console.log("Formatted profile image path:", user.profileImage);
+      }
+
+      // Force notification to be visible and update state with user data
       this.setState({
         isLoggedIn: true,
         user: user,
@@ -636,19 +567,12 @@ class NavBar extends Component {
 
   getSpecialOfferText = () => {
     const { user } = this.state;
+    if (!user) return "🔥 Special Launch Offer - 30% off on all services!";
 
-    if (!user) {
-      return [
-        "🎉Register Now and get 500/-",
-        "🚀 Join Waitlist for Passive Leads!",
-        "💎 Premium services at unbeatable prices!",
-        "🔑Refer and Earn 1 Month of Premium Membership!",
-      ];
-    }
-
-    // Check user role to determine the messages
+    // Check user role to determine the message - handle exact match with possible formats
     const role = user.role || "";
 
+    // Check for freelancer roles with various possible formats
     if (
       role === "freelancer" ||
       role === "Freelancer" ||
@@ -658,19 +582,9 @@ class NavBar extends Component {
       role.toLowerCase().includes("freelancer") ||
       role.toLowerCase().includes("service provider")
     ) {
-      return [
-        "🚀 Start your freelancing journey today with VOAT!",
-        "💼 Grow your business with our platform!",
-        "🌟 Connect with clients worldwide!",
-        "📈 Boost your freelance career now!",
-      ];
+      return "🚀 Start your freelancing journey today with VOAT!";
     } else {
-      return [
-        "🔥 Special Launch Offer - 30% off on all services!",
-        "📅 Book your consultation today and save big!",
-        "🚀 Join thousands of satisfied customers!",
-        "💎 Premium services at unbeatable prices!",
-      ];
+      return "🔥 Special Launch Offer - 30% off on all services!";
     }
   };
 
@@ -722,257 +636,279 @@ class NavBar extends Component {
     // Debug log
     console.log("Current user state in NavBar render:", user);
 
-    // Get profile image from database (could be null)
-    const profileImage = user?.profileImage;
+    // Determine profile image to use - debug the profile image path
+    console.log("Profile image path:", user?.profileImage);
+    const profileImage = user?.profileImage || null;
     const userInitials = user ? this.getUserInitials(user.name) : "";
     const voatId = user?.voatId || "";
-
-    // Helper function to get full image URL
-    const getFullImageUrl = (imagePath) => {
-      if (!imagePath) return null;
-      if (imagePath.startsWith("http")) return imagePath;
-
-      const backendUrl = this.getBackendUrl();
-      // Remove leading slashes and construct full URL
-      const cleanPath = imagePath.replace(/^\/+/, "");
-      return `${backendUrl}/${cleanPath}`;
-    };
-
-    const fullProfileImageUrl = profileImage
-      ? getFullImageUrl(profileImage)
-      : null;
-
-    console.log("Profile image path:", profileImage);
-    console.log("Full profile image URL:", fullProfileImageUrl);
 
     return (
       <>
         <header className={showSpecialOffer ? "" : "navbar-sticky"}>
           <div className="navbar-container">
             <div className="navbar-special-offer">
-              <div className="carousel-container">
-                {this.getSpecialOfferText().map((message, index) => (
-                  <div
-                    key={index}
-                    className={`carousel-message ${
-                      index === this.state.currentMessageIndex ? "active" : ""
-                    }`}
-                  >
-                    {message}
-                  </div>
-                ))}
-              </div>
+              {this.getSpecialOfferText()}
             </div>
             <nav
               className={`navbar ${showSpecialOffer ? "" : "navbar-no-offer"}`}
             >
-              <div className="navbar-left-section">
-                {/* Left-side menu items - UPDATED with active classes */}
-                <ul className="left-menu">
-                  <li className={activeMenu === "home" ? "active" : ""}>
-                    <Link
-                      to="/"
-                      onClick={() => {
-                        this.scrollToTop();
-                        this.setState({ activeMenu: "home" });
-                      }}
-                    >
-                      Home
+              {/* Desktop Layout */}
+              {!isMobile && (
+                <>
+                  <div className="navbar-left-section">
+                    {/* Left-side menu items - UPDATED with active classes */}
+                    <ul className="left-menu">
+                      <li className={activeMenu === "home" ? "active" : ""}>
+                        <Link
+                          to="/"
+                          onClick={() => {
+                            this.scrollToTop();
+                            this.setState({ activeMenu: "home" });
+                          }}
+                        >
+                          Home
+                        </Link>
+                      </li>
+                      <li className={activeMenu === "services" ? "active" : ""}>
+                        <Link
+                          to="/services"
+                          onClick={() => {
+                            this.scrollToTop();
+                            this.setState({ activeMenu: "services" });
+                          }}
+                        >
+                          Services
+                        </Link>
+                      </li>
+                      <li className={activeMenu === "portfolio" ? "active" : ""}>
+                        <Link
+                          to="/portfolio-list"
+                          onClick={() => {
+                            this.scrollToTop();
+                            this.setState({ activeMenu: "portfolio" });
+                          }}
+                        >
+                          Portfolios
+                        </Link>
+                      </li>
+                      <li className={activeMenu === "blog" ? "active" : ""}>
+                        <HashLink
+                          smooth
+                          to="/#blog"
+                          onClick={() => {
+                            this.scrollToTop();
+                            this.setState({ activeMenu: "blog" });
+                          }}
+                        >
+                          Blog
+                        </HashLink>
+                      </li>
+                      {/* ===== CONTACT SECTION STARTS HERE ===== */}
+                      <li className={activeMenu === "contact" ? "active" : ""}>
+                        {/* Contact Us Navigation Link */}
+                        <HashLink
+                          smooth
+                          to="/#contact"
+                          onClick={() => {
+                            this.scrollToTop();
+                            this.setState({ activeMenu: "contact" });
+                          }}
+                        >
+                          Contact Us
+                        </HashLink>
+                      </li>
+                      {/* ===== CONTACT SECTION ENDS HERE ===== */}
+                    </ul>
+                  </div>
+
+                  <div className="navbar-logo">
+                    <Link to="/" onClick={this.scrollToTop}>
+                      <img
+                        src="https://res.cloudinary.com/dffu1ungl/image/upload/v1744606803/VOAT_LOGO_zo7lk5.png"
+                        alt="Logo"
+                        className="nav-logo"
+                      />
                     </Link>
-                  </li>
-                  <li className={activeMenu === "services" ? "active" : ""}>
-                    <Link
-                      to="/services"
-                      onClick={() => {
-                        this.scrollToTop();
-                        this.setState({ activeMenu: "services" });
-                      }}
-                    >
-                      Services
-                    </Link>
-                  </li>
-                  <li className={activeMenu === "portfolio" ? "active" : ""}>
-                    <Link
-                      to="/portfolio-list"
-                      onClick={() => {
-                        this.scrollToTop();
-                        this.setState({ activeMenu: "portfolio" });
-                      }}
-                    >
-                      Portfolios
-                    </Link>
-                  </li>
-                  <li className={activeMenu === "contact" ? "active" : ""}>
-                    {/* Moved Contact Us to left menu */}
-                    <HashLink
-                      smooth
-                      to="/#contact"
-                      onClick={() => {
-                        this.scrollToTop();
-                        this.setState({ activeMenu: "contact" });
-                      }}
-                    >
-                      Contact Us
-                    </HashLink>
-                  </li>
-                </ul>
-              </div>
+                  </div>
 
-              <div className="navbar-logo">
-                <Link to="/" onClick={this.scrollToTop}>
-                  <img
-                    src="https://res.cloudinary.com/dffu1ungl/image/upload/v1744606803/VOAT_LOGO_zo7lk5.png"
-                    alt="Logo"
-                    className="nav-logo"
-                  />
-                </Link>
-              </div>
-
-              <div className="navbar-right-section">
-                {/* Search bar */}
-                <div className="navbar-search">
-                  <form onSubmit={this.handleSearchSubmit}>
-                    <input
-                      type="text"
-                      placeholder="Search..."
-                      value={searchQuery}
-                      onChange={this.handleSearchChange}
-                      aria-label="Search"
-                    />
-                    <button type="submit" aria-label="Submit search">
-                      <Search size={16} />
-                    </button>
-                  </form>
-                </div>
-
-                {/* User profile when logged in with profile image or initials */}
-                {isLoggedIn && user && (
-                  <div
-                    className="navbar-user-profile"
-                    ref={this.profileDropdownRef}
-                  >
-                    <button
-                      className="navbar-cart"
-                      onClick={this.toggleCartSidebar}
-                      aria-label="Open shopping cart"
-                    >
-                      <ShoppingCart size={20} />
-                    </button>
-
-                    {/* User profile with VOAT ID - REDESIGNED */}
-                    <div
-                      className="user-profile-container"
-                      onClick={this.toggleProfileDropdown}
-                    >
-                      <div className="user-avatar-wrapper">
-                        {profileImage ? (
-                          <img
-                            src={profileImage}
-                            alt="User"
-                            className="navbar-user-image"
-                            onError={(e) => {
-                              console.log("Image load error:", e);
-                              e.target.onerror = null;
-
-                              // Try with backend URL if it's a relative path
-                              if (
-                                !profileImage.startsWith("http") &&
-                                this.getBackendUrl()
-                              ) {
-                                const backendUrl = this.getBackendUrl();
-                                const cleanPath = profileImage.replace(
-                                  /^\/+/,
-                                  ""
-                                );
-                                e.target.src = `${backendUrl}/${cleanPath}`;
-                                return; // Give it another chance to load
-                              }
-
-                              e.target.src = ""; // Clear the source if second attempt fails
-                              e.target.style.display = "none"; // Hide the img
-
-                              // Add initials to the parent element
-                              const parent = e.target.parentNode;
-                              if (
-                                parent &&
-                                !parent.querySelector(".user-initials")
-                              ) {
-                                const initialsElem =
-                                  document.createElement("div");
-                                initialsElem.className = "user-initials";
-                                initialsElem.innerText = userInitials;
-                                parent.appendChild(initialsElem);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <div className="user-initials">{userInitials}</div>
-                        )}
-                      </div>
-
-                      {voatId && (
-                        <div className="navbar-voat-id">
-                          <span title="VOAT ID">{voatId}</span>
-                        </div>
-                      )}
+                  <div className="navbar-right-section">
+                    {/* Search bar */}
+                    <div className="navbar-search">
+                      <form onSubmit={this.handleSearchSubmit}>
+                        <input
+                          type="text"
+                          placeholder="Search..."
+                          value={searchQuery}
+                          onChange={this.handleSearchChange}
+                          aria-label="Search"
+                        />
+                        <button type="submit" aria-label="Submit search">
+                          <Search size={16} />
+                        </button>
+                      </form>
                     </div>
 
-                    {/* Profile Dropdown Menu */}
-                    {profileDropdownOpen && (
-                      <div className="profile-dropdown">
-                        <Link
-                          to="/user-dashboard"
-                          className="dropdown-item"
-                          onClick={() =>
-                            this.setState({ profileDropdownOpen: false })
-                          }
+                    {/* User profile when logged in with profile image or initials */}
+                    {isLoggedIn && user && (
+                      <div
+                        className="navbar-user-profile"
+                        ref={this.profileDropdownRef}
+                      >
+                        <button
+                          className="navbar-cart"
+                          onClick={this.toggleCartSidebar}
+                          aria-label="Open shopping cart"
                         >
-                          <User size={16} />
-                          <span>Dashboard</span>
-                        </Link>
+                          <ShoppingCart size={20} />
+                        </button>
+
+                        {/* User profile with VOAT ID - REDESIGNED */}
                         <div
-                          className="dropdown-item"
-                          onClick={this.handleLogout}
+                          className="user-profile-container"
+                          onClick={this.toggleProfileDropdown}
                         >
-                          <LogOut size={16} />
-                          <span>Logout</span>
+                          <div className="user-avatar-wrapper">
+                            {profileImage ? (
+                              <img
+                                src={profileImage}
+                                alt="User"
+                                className="navbar-user-image"
+                                onError={(e) => {
+                                  console.log("Image load error:", e);
+                                  e.target.onerror = null;
+
+                                  // Try with backend URL if it's a relative path
+                                  if (
+                                    !profileImage.startsWith("http") &&
+                                    this.getBackendUrl()
+                                  ) {
+                                    const backendUrl = this.getBackendUrl();
+                                    const cleanPath = profileImage.replace(
+                                      /^\/+/,
+                                      ""
+                                    );
+                                    e.target.src = `${backendUrl}/${cleanPath}`;
+                                    return; // Give it another chance to load
+                                  }
+
+                                  e.target.src = ""; // Clear the source if second attempt fails
+                                  e.target.style.display = "none"; // Hide the img
+
+                                  // Add initials to the parent element
+                                  const parent = e.target.parentNode;
+                                  if (
+                                    parent &&
+                                    !parent.querySelector(".user-initials")
+                                  ) {
+                                    const initialsElem =
+                                      document.createElement("div");
+                                    initialsElem.className = "user-initials";
+                                    initialsElem.innerText = userInitials;
+                                    parent.appendChild(initialsElem);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div className="user-initials">{userInitials}</div>
+                            )}
+                          </div>
+
+                          {voatId && (
+                            <div className="navbar-voat-id">
+                              <span title="VOAT ID">{voatId}</span>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Profile Dropdown Menu */}
+                        {profileDropdownOpen && (
+                          <div className="profile-dropdown">
+                            <Link
+                              to="/user-dashboard"
+                              className="dropdown-item"
+                              onClick={() =>
+                                this.setState({ profileDropdownOpen: false })
+                              }
+                            >
+                              <User size={16} />
+                              <span>Dashboard</span>
+                            </Link>
+                            <div
+                              className="dropdown-item"
+                              onClick={this.handleLogout}
+                            >
+                              <LogOut size={16} />
+                              <span>Logout</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Desktop auth button */}
+                    {!isLoggedIn && (
+                      <div className="navbar-auth desktop-auth">
+                        <Link
+                          to="/login"
+                          className="get-started-btn"
+                          onClick={this.scrollToTop}
+                        >
+                          Login
+                        </Link>
                       </div>
                     )}
                   </div>
-                )}
+                </>
+              )}
 
-                {/* Desktop auth button */}
-                {!isLoggedIn && (
-                  <div className="navbar-auth desktop-auth">
-                    <Link
-                      to="/login"
-                      className="get-started-btn"
-                      onClick={this.scrollToTop}
-                    >
-                      Login
-                    </Link>
-                  </div>
-                )}
-              </div>
-
-              {/* Mobile auth button and hamburger */}
+              {/* Mobile Layout - Three Sections */}
               {isMobile && (
-                <div className="mobile-nav-controls">
-                  {!isLoggedIn && (
-                    <Link
-                      to="/login"
-                      className="get-started-btn mobile-auth"
-                      onClick={this.scrollToTop}
-                    >
-                      login
-                    </Link>
-                  )}
-
+                <>
+                  {/* Left Section - Hamburger */}
                   <div className="navbar-hamburger" onClick={this.toggleMenu}>
                     {menuOpen ? null : <Menu size={24} />}
                   </div>
-                </div>
+
+                  {/* Center Section - Logo */}
+                  <div className="navbar-logo">
+                    <Link to="/" onClick={this.scrollToTop}>
+                      <img
+                        src="https://res.cloudinary.com/dffu1ungl/image/upload/v1744606803/VOAT_LOGO_zo7lk5.png"
+                        alt="Logo"
+                        className="nav-logo"
+                      />
+                    </Link>
+                  </div>
+
+                  {/* Right Section - Auth Controls */}
+                  <div className="mobile-nav-controls">
+                    {!isLoggedIn ? (
+                      <Link
+                        to="/login"
+                        className="mobile-auth"
+                        onClick={this.scrollToTop}
+                      >
+                        <LogInIcon color="#0a385b" size={24} />
+                      </Link>
+                    ) : (
+                      <div className="mobile-auth-container">
+                        <button
+                          className="mobile-auth-user"
+                          onClick={this.toggleCartSidebar}
+                        >
+                          <ShoppingCart size={20} color="#fff" />
+                        </button>
+                        <Link
+                          to="/user-dashboard"
+                          className="mobile-auth-user"
+                          onClick={this.scrollToTop}
+                        >
+                          <User size={20} color="#fff" />
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Mobile menu - UPDATED with active classes */}
@@ -1077,7 +1013,22 @@ class NavBar extends Component {
                       Portfolio
                     </Link>
                   </li>
+                  <li className={activeMenu === "blog" ? "active" : ""}>
+                    <HashLink
+                      smooth
+                      to="/#blog"
+                      onClick={() => {
+                        this.scrollToTop();
+                        this.setState({ activeMenu: "blog" });
+                        this.toggleMenu();
+                      }}
+                    >
+                      Blog
+                    </HashLink>
+                  </li>
+                  {/* ===== CONTACT SECTION STARTS HERE ===== */}
                   <li className={activeMenu === "contact" ? "active" : ""}>
+                    {/* Contact Us Mobile Navigation Link */}
                     <HashLink
                       smooth
                       to="/#contact"
@@ -1089,6 +1040,7 @@ class NavBar extends Component {
                       Contact Us
                     </HashLink>
                   </li>
+                  {/* ===== CONTACT SECTION ENDS HERE ===== */}
                   {isLoggedIn && user && (
                     <>
                       <li>
