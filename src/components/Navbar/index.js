@@ -31,6 +31,7 @@ class NavBar extends Component {
     searchQuery: "",
     activeMenu: "",
     cartSidebarOpen: false,
+    currentMessageIndex: 0,
   };
 
   // Backend URLs - will try both environments
@@ -46,6 +47,7 @@ class NavBar extends Component {
   loginCheckInterval = null;
   welcomeMessageTimer = null;
   storageEventBound = false;
+  carouselInterval = null;
 
   componentDidMount() {
     window.navbarComponent = this;
@@ -82,6 +84,9 @@ class NavBar extends Component {
     // Add a method to show welcome message
     window.showWelcomeMessage = this.showWelcomeMessage;
 
+    // Start the carousel
+    this.startCarousel();
+
     console.log("NavBar mounted with notifications setup");
   }
 
@@ -100,6 +105,28 @@ class NavBar extends Component {
       this.setState({ activeMenu: "contact" });
     } else {
       this.setState({ activeMenu: "" });
+    }
+  };
+
+  startCarousel = () => {
+    this.carouselInterval = setInterval(() => {
+      const messages = this.getSpecialOfferText();
+      this.setState((prevState) => ({
+        currentMessageIndex: (prevState.currentMessageIndex + 1) % messages.length,
+      }));
+    }, 4000); // Change message every 4 seconds (increased from 3)
+  };
+
+  pauseCarousel = () => {
+    if (this.carouselInterval) {
+      clearInterval(this.carouselInterval);
+      this.carouselInterval = null;
+    }
+  };
+
+  resumeCarousel = () => {
+    if (!this.carouselInterval) {
+      this.startCarousel();
     }
   };
 
@@ -296,6 +323,7 @@ class NavBar extends Component {
     clearTimeout(this.redirectTimer);
     clearTimeout(this.welcomeMessageTimer);
     clearInterval(this.loginCheckInterval);
+    clearInterval(this.carouselInterval);
   }
 
   // Method to check login status periodically
@@ -567,12 +595,19 @@ class NavBar extends Component {
 
   getSpecialOfferText = () => {
     const { user } = this.state;
-    if (!user) return "🔥 Special Launch Offer - 30% off on all services!";
 
-    // Check user role to determine the message - handle exact match with possible formats
+    if (!user) {
+      return [
+        "🎉 Register Now and get 500/-",
+        "🚀 Join Waitlist for Passive Leads!",
+        "💎 Premium services at unbeatable prices!",
+        "🔑 Refer and Earn 1 Month of Premium Membership!",
+      ];
+    }
+
+    // Check user role to determine the messages
     const role = user.role || "";
 
-    // Check for freelancer roles with various possible formats
     if (
       role === "freelancer" ||
       role === "Freelancer" ||
@@ -582,9 +617,19 @@ class NavBar extends Component {
       role.toLowerCase().includes("freelancer") ||
       role.toLowerCase().includes("service provider")
     ) {
-      return "🚀 Start your freelancing journey today with VOAT!";
+      return [
+        "🚀 Start your freelancing journey today with VOAT!",
+        "💼 Grow your business with our platform!",
+        "🌟 Connect with clients worldwide!",
+        "📈 Boost your freelance career now!",
+      ];
     } else {
-      return "🔥 Special Launch Offer - 30% off on all services!";
+      return [
+        "🔥 Special Launch Offer - 30% off on all services!",
+        "📅 Book your consultation today and save big!",
+        "🚀 Join thousands of satisfied customers!",
+        "💎 Premium services at unbeatable prices!",
+      ];
     }
   };
 
@@ -631,6 +676,7 @@ class NavBar extends Component {
       searchQuery,
       activeMenu,
       cartSidebarOpen,
+      currentMessageIndex,
     } = this.state;
 
     // Debug log
@@ -646,8 +692,23 @@ class NavBar extends Component {
       <>
         <header className={showSpecialOffer ? "" : "navbar-sticky"}>
           <div className="navbar-container">
-            <div className="navbar-special-offer">
-              {this.getSpecialOfferText()}
+            <div 
+              className="navbar-special-offer"
+              onMouseEnter={this.pauseCarousel}
+              onMouseLeave={this.resumeCarousel}
+            >
+              <div className="carousel-container">
+                {this.getSpecialOfferText().map((message, index) => (
+                  <div
+                    key={index}
+                    className={`carousel-message ${
+                      index === currentMessageIndex ? "active" : ""
+                    }`}
+                  >
+                    {message}
+                  </div>
+                ))}
+              </div>
             </div>
             <nav
               className={`navbar ${showSpecialOffer ? "" : "navbar-no-offer"}`}
